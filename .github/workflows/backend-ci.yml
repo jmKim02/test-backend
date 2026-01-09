@@ -115,18 +115,18 @@ jobs:
             RELEASE_DIR="$BACKEND_DIR/release"
             NEW_JAR="$RELEASE_DIR/${{ env.JAR_FILENAME }}"
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
-            
+              
             echo "1. 기존 프로세스 종료"
             pkill -f 'backend.jar' && echo "Process stopped" || echo "No process running"
             sleep 3
-            
+              
             echo "2. 프로세스 강제 종료 확인"
             if ps aux | grep 'backend.jar' | grep -v grep > /dev/null; then
               echo "Force killing..."
               pkill -9 -f 'backend.jar'
               sleep 1
             fi
-            
+              
             echo "3. 새 JAR로 심볼릭 링크 생성"
             ln -sf $NEW_JAR $CURRENT_LINK
             ls -lh ~/backend/backend.jar
@@ -134,7 +134,7 @@ jobs:
             echo "4. 새 JAR 실행"
             cd $BACKEND_DIR
             nohup java -jar backend.jar > backend.log 2>&1 &
-            
+              
             echo "5. 프로세스 시작 대기"
             sleep 10
 
@@ -208,7 +208,7 @@ jobs:
           git push origin $NEW_VERSION
           echo "DEPLOY_TAG=$NEW_VERSION" >> $GITHUB_ENV
           echo "Tag created: $NEW_VERSION"
-
+          
       # 8. 오래된 release/ 파일 정리 (배포 성공 시)
       - name: Cleanup Old Releases
         if: steps.healthcheck.outcome == 'success'
