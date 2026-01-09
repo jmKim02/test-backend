@@ -84,8 +84,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: backend-ci.yml  # 워크플로우 파일명
-          commit: ${{ github.sha }}
-          name: backend-${{ github.sha }}
+          pr: ${{ github.event.pull_request.number }}  # ← PR 번호로 검색
+          workflow_conclusion: success
+          name: backend-${{ github.event.pull_request.head.sha }}  # ← PR의 head 커밋
           path: ./artifacts
 
       # 3. 타임스탬프로 JAR 파일명 변경
