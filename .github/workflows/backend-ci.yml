@@ -110,8 +110,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            set -e
-            
             BACKEND_DIR="/home/jmkim990226/backend"
             RELEASE_DIR="$BACKEND_DIR/release"
             NEW_JAR="$RELEASE_DIR/${{ env.JAR_FILENAME }}"
@@ -150,8 +148,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            set -e
-            
             echo "6. Health Check"
             MAX_RETRY=10
             RETRY_COUNT=0
