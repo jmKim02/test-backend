@@ -14,6 +14,7 @@ env:
 
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
     runs-on: ubuntu-latest
     steps:
       # 1. 코드 체크아웃
@@ -111,7 +112,7 @@ jobs:
           script: |
             set -e
             
-            BACKEND_DIR="/home/ubuntu/backend"
+            BACKEND_DIR="/home/jmkim990226/backend"
             RELEASE_DIR="$BACKEND_DIR/release"
             NEW_JAR="$RELEASE_DIR/${{ env.JAR_FILENAME }}"
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
