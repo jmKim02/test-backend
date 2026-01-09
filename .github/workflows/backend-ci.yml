@@ -110,9 +110,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          source: "artifacts/${{ env.JAR_FILENAME }}"
+          source: "backend-${{ env.DEPLOY_TIMESTAMP }}.jar"
           target: "~/backend/release/"
-          strip_components: 1
+          strip_components: 0
 
       # 5. 배포 실행 (심볼릭 링크 방식)
       - name: Deploy via SSH
@@ -126,7 +126,7 @@ jobs:
           script: |
             BACKEND_DIR="/home/jmkim990226/backend"
             RELEASE_DIR="$BACKEND_DIR/release"
-            NEW_JAR="$RELEASE_DIR/${{ env.JAR_FILENAME }}"
+            NEW_JAR="$RELEASE_DIR/backend-${{ env.DEPLOY_TIMESTAMP }}.jar"
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
               
             echo "1. 기존 프로세스 종료"
