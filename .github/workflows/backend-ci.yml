@@ -143,7 +143,7 @@ jobs:
               fi
               echo "Process stopped"
             else
-              echo "No process running"
+              echo "No process running!"
             fi
               
             echo "3. 새 JAR로 심볼릭 링크 생성"
