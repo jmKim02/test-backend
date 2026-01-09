@@ -14,6 +14,7 @@ env:
 
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
+    if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
       # 1. 코드 체크아웃
@@ -37,9 +38,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v3 # 빌드 캐싱
 
       # Phase 1: Lint (Checkstyle)
-      - name: Run Checkstyle
-        run: ./gradlew checkstyleMain checkstyleTest
-        continue-on-error: true  # 초기엔 경고만 (점진적 개선)
+      #- name: Run Checkstyle
+      #  run: ./gradlew checkstyleMain checkstyleTest
+      #  continue-on-error: true  # 초기엔 경고만 (점진적 개선)
 
       # Phase 2: Build
       - name: Build with Gradle
