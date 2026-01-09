@@ -14,7 +14,6 @@ env:
 
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
-    if: github.event.action == 'opened' || github.event.action == 'synchronize'
     runs-on: ubuntu-latest
     steps:
       # 1. 코드 체크아웃
