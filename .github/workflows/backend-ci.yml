@@ -1,9 +1,16 @@
-name: Backend CI 2
+name: Backend CI
 
 on:
   pull_request:
     types: [opened, synchronize]
     branches: [dev, main]
+
+# 공통 환경 변수 설정
+env:
+  SSH_HOST: ${{ secrets.SERVER_HOST }}
+  SSH_USER: ${{ secrets.SERVER_USER }}
+  SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  SSH_PORT: 22
 
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
@@ -51,3 +58,178 @@ jobs:
           path: build/libs/*.jar
           retention-days: 90
           compression-level: 0  # JAR는 이미 압축됨
+
+  cd:
+    if: github.event.pull_request.merged == true
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 코드 체크아웃 (태깅용)
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Git Tag 생성 위해 전체 히스토리 필요함
+
+      # 2. Artifact Download (CI에서 생성한 JAR)
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-${{ github.sha }}
+          path: ./artifacts
+
+      # 3. 타임스탬프로 JAR 파일명 변경
+      - name: Prepare JAR with timestamp
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          cd artifacts
+          JAR_FILE=$(ls *.jar | head -n 1)
+          mv $JAR_FILE backend-${TIMESTAMP}.jar
+          echo "JAR_FILENAME=backend-${TIMESTAMP}.jar" >> $GITHUB_ENV
+          echo "DEPLOY_TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
+
+      # 4. release/ 디렉토리로 JAR 전송
+      - name: Transfer JAR to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          source: "artifacts/${{ env.JAR_FILENAME }}"
+          target: "~/backend/release/"
+          strip_components: 1
+
+      # 5. 배포 실행 (심볼릭 링크 방식)
+      - name: Deploy via SSH
+        id: deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          script: |
+            set -e
+            
+            BACKEND_DIR="/home/ubuntu/backend"
+            RELEASE_DIR="$BACKEND_DIR/release"
+            NEW_JAR="$RELEASE_DIR/${{ env.JAR_FILENAME }}"
+            CURRENT_LINK="$BACKEND_DIR/backend.jar"
+            
+            echo "1. 기존 프로세스 종료"
+            pkill -f 'backend.jar' && echo "Process stopped" || echo "No process running"
+            sleep 3
+            
+            echo "2. 프로세스 강제 종료 확인"
+            if ps aux | grep 'backend.jar' | grep -v grep > /dev/null; then
+              echo "Force killing..."
+              pkill -9 -f 'backend.jar'
+              sleep 1
+            fi
+            
+            echo "3. 새 JAR로 심볼릭 링크 생성"
+            ln -sf $NEW_JAR $CURRENT_LINK
+            ls -lh ~/backend/backend.jar
+            
+            echo "4. 새 JAR 실행"
+            cd $BACKEND_DIR
+            nohup java -jar backend.jar > backend.log 2>&1 &
+            
+            echo "5. 프로세스 시작 대기"
+            sleep 10
+
+      # 6.Health Check
+      - name: Health Check
+        id: healthcheck
+        uses: appleboy/ssh-action@v1.0.0
+        continue-on-error: true
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          script: |
+            set -e
+            
+            echo "6. Health Check"
+            MAX_RETRY=10
+            RETRY_COUNT=0
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRY ]; do
+              if curl -f -s http://localhost:8080/actuator/health > /dev/null; then
+                echo "Health check passed!"
+                exit 0
+              fi
+            
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "Retry $RETRY_COUNT/$MAX_RETRY..."
+              sleep 5
+            done
+            
+            echo "Health check failed!"
+            tail -30 /home/ubuntu/backend/backend.log
+            exit 1
+
+      # 7. 시맨틱 버전 태그 생성
+      - name: Create Semantic Version Tag
+        if: steps.healthcheck.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 최신 태그 가져오기 (없으면 v0.0.0)
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # 버전 파싱
+          VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+          
+          # Patch 버전 자동 증가
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          
+          echo "New version: $NEW_VERSION"
+          
+          # Git 설정
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 태그 생성 및 푸시
+          git tag -a $NEW_VERSION -m "Release $NEW_VERSION
+          
+          Deploy Timestamp: ${{ env.DEPLOY_TIMESTAMP }}
+          JAR File: ${{ env.JAR_FILENAME }}
+          Commit: ${{ github.sha }}
+          PR: #${{ github.event.pull_request.number }}
+          Merged by: ${{ github.event.pull_request.user.login }}"
+          
+          git push origin $NEW_VERSION
+          echo "DEPLOY_TAG=$NEW_VERSION" >> $GITHUB_ENV
+          echo "Tag created: $NEW_VERSION"
+
+      # 8. 오래된 release/ 파일 정리 (배포 성공 시)
+      - name: Cleanup Old Releases
+        if: steps.healthcheck.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          port: ${{ env.SSH_PORT }}
+          script: |
+            RELEASE_DIR="/home/ubuntu/backend/release"
+            
+            echo "Cleanup old releases"
+            
+            # 최근 5개만 유지, 나머지 삭제
+            cd $RELEASE_DIR
+            OLD_JARS=$(ls -t backend-*.jar | tail -n +6)
+            
+            if [ -n "$OLD_JARS" ]; then
+              echo "Removing old releases:"
+              echo "$OLD_JARS" | xargs -r rm -v
+            else
+              echo "No old releases to clean up"
+            fi
