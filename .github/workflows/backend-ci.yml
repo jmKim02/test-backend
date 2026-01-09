@@ -116,13 +116,13 @@ jobs:
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
               
             echo "1. 기존 프로세스 종료"
-            pkill -f 'backend.jar' && echo "Process stopped" || echo "No process running"
+            kill -f 'backend.jar' && echo "Process stopped" || echo "No process running"
             sleep 3
               
             echo "2. 프로세스 강제 종료 확인"
             if ps aux | grep 'backend.jar' | grep -v grep > /dev/null; then
               echo "Force killing..."
-              pkill -9 -f 'backend.jar'
+              kill -9 -f 'backend.jar'
               sleep 1
             fi
               
@@ -164,7 +164,7 @@ jobs:
             done
             
             echo "Health check failed!"
-            tail -30 /home/ubuntu/backend/backend.log
+            tail -30 /home/jmkim990226/backend/backend.log
             exit 1
 
       # 7. 시맨틱 버전 태그 생성
@@ -216,7 +216,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            RELEASE_DIR="/home/ubuntu/backend/release"
+            RELEASE_DIR="/home/jmkim990226/backend/release"
             
             echo "Cleanup old releases"
             
