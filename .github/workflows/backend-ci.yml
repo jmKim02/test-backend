@@ -95,8 +95,10 @@ jobs:
         run: |
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           cd artifacts
+          cd $(ls -d backend-* | head -n 1)
           JAR_FILE=$(ls *.jar | head -n 1)
-          mv $JAR_FILE backend-${TIMESTAMP}.jar
+          mv $JAR_FILE ../../backend-${TIMESTAMP}.jar
+          cd ../..
           echo "JAR_FILENAME=backend-${TIMESTAMP}.jar" >> $GITHUB_ENV
           echo "DEPLOY_TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
 
