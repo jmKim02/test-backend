@@ -5,15 +5,9 @@ on:
     types: [opened, synchronize, closed]
     branches: [dev, main]
 
-# 공통 환경 변수 설정
-env:
-  SSH_HOST: ${{ secrets.SERVER_HOST }}
-  SSH_USER: ${{ secrets.SERVER_USER }}
-  SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  SSH_PORT: 22
-
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
+    # closed는 제외 (병합 시에는 CD만 실행)
     if: github.event.action == 'opened' || github.event.action == 'synchronize' # || github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
@@ -38,9 +32,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v3 # 빌드 캐싱
 
       # Phase 1: Lint (Checkstyle)
-      #- name: Run Checkstyle
-      #  run: ./gradlew checkstyleMain checkstyleTest
-      #  continue-on-error: true  # 초기엔 경고만 (점진적 개선)
+      - name: Run Checkstyle
+        run: ./gradlew checkstyleMain checkstyleTest
+        continue-on-error: true  # 초기엔 경고만 (점진적 개선)
 
       # Phase 2: Build
       - name: Build with Gradle
@@ -57,7 +51,7 @@ jobs:
         with:
           name: backend-${{ github.sha }}
           path: build/libs/*.jar
-          retention-days: 90
+          retention-days: 30
           compression-level: 0  # JAR는 이미 압축됨
 
   cd:
@@ -78,15 +72,16 @@ jobs:
       #    name: backend-${{ github.sha }}
       #    path: ./artifacts
 
-      # 2. Artifact Download (변경!)
+      # 2. Artifact Download (변경)
       - name: Download JAR artifact
         uses: dawidd6/action-download-artifact@v6
+        # 다른 워크플로우 실행의 Artifact도 다운로드 가능한 커스텀 액션
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: backend-ci.yml  # 워크플로우 파일명
-          pr: ${{ github.event.pull_request.number }}  # ← PR 번호로 검색
-          workflow_conclusion: success
-          name_is_regexp: true
+          workflow: backend-ci.yml  # Artifact를 생성한 워크플로우 파일명
+          pr: ${{ github.event.pull_request.number }}  # PR 번호로 검색
+          workflow_conclusion: success # 성공한 워크플로우만 검색
+          name_is_regexp: true # Artifact 이름을 정규표현식으로 검색 true는 패턴 매칭 가능
           name: "backend-.*"
           path: ./artifacts
 
@@ -96,7 +91,7 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           cd artifacts
           cd $(ls -d backend-* | head -n 1)
-          JAR_FILE=$(ls *.jar | head -n 1)
+          JAR_FILE=$(ls *.jar | head -n 1)   
           mv $JAR_FILE ../../backend-${TIMESTAMP}.jar
           cd ../..
           echo "JAR_FILENAME=backend-${TIMESTAMP}.jar" >> $GITHUB_ENV
@@ -110,9 +105,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          source: "backend-${{ env.DEPLOY_TIMESTAMP }}.jar"
+          source: "backend-${{ env.DEPLOY_TIMESTAMP }}.jar" # 전송할 파일
           target: "~/backend/release/"
-          strip_components: 0
+          strip_components: 0 # 경로에서 제거할 디렉토리 깊이: 지금 이미 파일명만 있음
+          # 0: 원본 경로 그대로 유지
+          # 1: 첫 번째 디렉토리 제거 (artifacts/file.jar → file.jar)
 
       # 5. 배포 실행 (심볼릭 링크 방식)
       - name: Deploy via SSH
@@ -130,19 +127,27 @@ jobs:
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
               
             echo "1. 기존 프로세스 종료"
-            kill -9 'backend.jar' && echo "Process stopped" || echo "No process running"
-            sleep 3
-              
-            echo "2. 프로세스 강제 종료 확인"
-            if ps aux | grep 'backend.jar' | grep -v grep > /dev/null; then
-              echo "Force killing..."
-              kill -9 'backend.jar'
-              sleep 1
+            PID=$(pgrep -f "java.*-jar.*backend.jar" || echo "")
+
+            if [ -n "$PID" ]; then
+              echo "Stopping process $PID"
+              kill $PID || true
+              sleep 3
+  
+              echo "2. 프로세스 강제 종료 확인"
+              if ps -p $PID > /dev/null 2>&1; then
+                echo "Force killing $PID"
+                kill -9 $PID || true
+                sleep 1
+              fi
+              echo "Process stopped"
+            else
+              echo "No process running"
             fi
               
             echo "3. 새 JAR로 심볼릭 링크 생성"
             ln -sf $NEW_JAR $CURRENT_LINK
-            ls -lh ~/backend/backend.jar
+            ls -lh ~/backend/backend.jar 
             
             echo "4. 새 JAR 실행"
             cd $BACKEND_DIR
@@ -183,11 +188,13 @@ jobs:
 
       # 7. 시맨틱 버전 태그 생성
       - name: Create Semantic Version Tag
-        if: steps.healthcheck.outcome == 'success'
+        if: steps.healthcheck.outcome == 'success'  # Health Check 성공 시에만 실행
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 최신 태그 가져오기 (없으면 v0.0.0)
+          # git describe --tags: 가장 가까운 태그 찾기
+          # --abbrev=0: 커밋 해시 표시 안 함 (태그만)
           LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || echo "v0.0.0")
           echo "Latest tag: $LATEST_TAG"
           
@@ -197,13 +204,14 @@ jobs:
           MINOR=$(echo $VERSION | cut -d. -f2)
           PATCH=$(echo $VERSION | cut -d. -f3)
           
-          # Patch 버전 자동 증가
+          # Patch 버전 자동 증가 (0.0.0 → 0.0.1)
+          # 단 패치버전에 대해서만 가능, 메이저의 경우 수동으로 업데이트가 필요
           PATCH=$((PATCH + 1))
           NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
           
           echo "New version: $NEW_VERSION"
           
-          # Git 설정
+          # Git 설정 (커밋 작성자 정보)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
