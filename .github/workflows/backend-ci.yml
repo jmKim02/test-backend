@@ -117,14 +117,20 @@ jobs:
               
             echo "1. 기존 프로세스 종료"
             PID=$(pgrep -f "backend.jar")
-            kill $PID && echo "Process stopped" || echo "No process running"
-            sleep 3
-              
-            echo "2. 프로세스 강제 종료 확인"
-            if ps aux | grep 'backend.jar' | grep -v grep > /dev/null; then
-              echo "Force killing..."
-              kill -9 -f 'backend.jar'
-              sleep 1
+            if [ -n "$PID" ]; then
+              echo "Stopping process $PID"
+              kill $PID
+              sleep 3
+  
+              echo "2. 프로세스 강제 종료 확인"
+              if ps -p $PID > /dev/null 2>&1; then
+                echo "Force killing $PID"
+                kill -9 $PID
+                sleep 1
+              fi
+              echo "Process stopped"
+            else
+              echo "No process running"
             fi
               
             echo "3. 새 JAR로 심볼릭 링크 생성"
