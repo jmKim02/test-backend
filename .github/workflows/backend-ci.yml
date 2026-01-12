@@ -89,6 +89,10 @@ jobs:
       - name: Prepare JAR with timestamp
         run: |
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          
+          echo "=== Artifact 크기 확인 ==="
+          du -sh artifacts/
+          
           cd artifacts
           cd $(ls -d backend-* | head -n 1)
           JAR_FILE=$(ls *.jar | head -n 1)   
@@ -238,3 +242,14 @@ jobs:
             else
               echo "No old releases to clean up"
             fi
+
+      # 9. Discord 알림 (성공/실패 + 커밋) - 아직 테스트 전
+      # - name: Notify Discord
+      #  if: always()
+      #  env:
+      #    DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      #    STATUS: ${{ steps.healthcheck.outcome }} # success | failure | cancelled | skipped
+      #  run: |
+      #    curl -s -X POST -H "Content-Type: application/json" \
+      #      -d "{\"content\":\"Backend deploy ${STATUS} | commit: ${{ github.sha }}\"}" \
+      #      "$DISCORD_WEBHOOK_URL"
