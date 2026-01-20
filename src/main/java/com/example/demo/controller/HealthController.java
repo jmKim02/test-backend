@@ -38,7 +38,7 @@ public class HealthController {
         }
 
         public void setStatus() {
-            status = "default";
+            status = "default2";
         }
 
         public long getTimestamp() {
