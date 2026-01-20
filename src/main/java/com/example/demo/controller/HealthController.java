@@ -23,6 +23,12 @@ public class HealthController {
         return new HealthStatus("UP", System.currentTimeMillis());
     }
 
+    // 🆕 새로 추가
+    @GetMapping("/api/version")
+    public String version() {
+        return "v1.0.0";
+    }
+
     // 🆕 내부 클래스 추가
     static class HealthStatus {
         private String status;
@@ -38,11 +44,13 @@ public class HealthController {
         }
 
         public void setStatus() {
-            status = "default2";
+            status = "default22";
         }
 
         public long getTimestamp() {
             return timestamp;
         }
+
+
     }
 }
