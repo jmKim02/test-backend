@@ -26,7 +26,7 @@ public class HealthController {
     // 🆕 새로 추가
     @GetMapping("/api/version")
     public String version() {
-        return "v1.0.0";
+        return "v2.0.0";
     }
 
     // 🆕 내부 클래스 추가
