@@ -258,5 +258,5 @@ jobs:
           STATUS="${{ job.status }}"  # job.status로 변경
           TAG="${{ env.DEPLOY_TAG }}"
           curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"content\":\"<@${MENTION_USER}> Backend CD **${JOB_STATUS}** | Health: ${HEALTH_STATUS} | Tag: ${TAG} | \`${GITHUB_SHA:0:7}\`\"}" \
+            -d "{\"content\":\"<@${MENTION_USER}> Backend CD **${STATUS}** | Tag: ${TAG} | \`${GITHUB_SHA:0:7}\`\"}" \
             "$DISCORD_WEBHOOK_URL"
