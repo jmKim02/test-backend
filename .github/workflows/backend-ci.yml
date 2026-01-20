@@ -63,7 +63,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -71,7 +71,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -89,8 +88,7 @@ jobs:
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
-            --allowedTools "Read,LS,Grep,Glob,Edit,Write,MultiEdit,Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(gh pr:*),mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment"
-
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
   cd:
     if: github.event.pull_request.merged == true
     # needs: ci
