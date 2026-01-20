@@ -63,7 +63,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
@@ -71,50 +71,25 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.CLAUDE_GITHUB_TOKEN }}
-          track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
             
-            Java/Spring Boot 백엔드 프로젝트 코드 리뷰를 진행해주세요.
-            
-            ## 리뷰 체크리스트
-            
-            ### 🚨 위험한 코드 (즉시 수정 필요)
-            - SQL Injection, XSS 등 보안 취약점
-            - NullPointerException 발생 가능성이 높은 코드
-            - 메모리 누수 위험
-            - 민감 정보(비밀번호, API 키) 노출
-            
-            ### ⚠️ 주의할 코드 (개선 권장)
-            - N+1 쿼리 문제
-            - 불필요한 DB 조회나 반복문
-            - try-catch에서 예외 무시
-            - 네이밍 컨벤션 위반
-            - 중복 코드
-            - 매직 넘버 사용
-            
-            ### 🌱 Spring Boot 베스트 프랙티스
-            - @Transactional 올바른 사용
-            - Bean 생명주기 관리
-            - REST API 설계 원칙
-            - 예외 처리 전략 (@ControllerAdvice)
-            
-            ### ✅ 좋은 점
-            - 잘 작성된 코드
-            - 좋은 설계 패턴
-            - 명확한 네이밍
-            
-            Note: PR 브랜치가 이미 체크아웃되어 있습니다.
-            
-            **리뷰 방법:**
-            - 구체적인 코드 이슈는 해당 라인에 inline comment로 남겨주세요
-            - 전체적인 피드백은 `gh pr comment`를 사용해주세요
-            - 심각도에 따라 이모지(🚨, ⚠️, ✅)를 사용해주세요
+            Please review this pull request with a focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Security implications
+            - Performance considerations
+
+            Note: The PR branch is already checked out in the current working directory.
+
+            Use `gh pr comment` for top-level feedback.
+            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
+            Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
-            --allowedTools "Read,Write,Edit,MultiEdit,Bash(gh pr:*),mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
   cd:
     if: github.event.pull_request.merged == true
     # needs: ci

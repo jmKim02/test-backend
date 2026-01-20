@@ -37,6 +37,10 @@ public class HealthController {
             return status;
         }
 
+        public void setStatus() {
+            status = "default";
+        }
+
         public long getTimestamp() {
             return timestamp;
         }
