@@ -16,4 +16,29 @@ public class HealthController {
     public String health() {
         return "OK";
     }
+
+    // 🆕 새로 추가: 상세 헬스체크
+    @GetMapping("/api/health/detailed")
+    public HealthStatus detailedHealth() {
+        return new HealthStatus("UP", System.currentTimeMillis());
+    }
+
+    // 🆕 내부 클래스 추가
+    static class HealthStatus {
+        private String status;
+        private long timestamp;
+
+        public HealthStatus(String status, long timestamp) {
+            this.status = status;
+            this.timestamp = timestamp;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
+        }
+    }
 }
