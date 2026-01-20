@@ -114,8 +114,7 @@ jobs:
             - 심각도에 따라 이모지(🚨, ⚠️, ✅)를 사용해주세요
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
-
+            --allowedTools "Read,Write,Edit,MultiEdit,Bash(gh pr:*),mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment"
   cd:
     if: github.event.pull_request.merged == true
     # needs: ci
