@@ -66,42 +66,6 @@ jobs:
             -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
             "$DISCORD_WEBHOOK_URL"
 
-  code-review: # 클로드 PR 코드 리뷰 자동화
-    if: github.event.action == 'opened' || github.event.action == 'synchronize'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Claude AI Code Review
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-            
-            Please review this pull request with a focus on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Security implications
-            - Performance considerations
-
-            Note: The PR branch is already checked out in the current working directory.
-
-            Use `gh pr comment` for top-level feedback.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
-            Only post GitHub comments - don't submit review text as messages.
-
-          claude_args: |
-            --allowedTools "Read,LS,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
-
   cd:
     if: github.event.pull_request.merged == true
     # needs: ci
@@ -119,7 +83,7 @@ jobs:
         # 다른 워크플로우 실행의 Artifact도 다운로드 가능한 커스텀 액션
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: backend-ci.yml  # Artifact를 생성한 워크플로우 파일명
+          workflow: backend-ci-cd.yml  # Artifact를 생성한 워크플로우 파일명
           pr: ${{ github.event.pull_request.number }}  # PR 번호로 검색
           workflow_conclusion: success # 성공한 워크플로우만 검색
           name_is_regexp: true # Artifact 이름을 정규표현식으로 검색 true는 패턴 매칭 가능
