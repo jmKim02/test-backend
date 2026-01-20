@@ -1,4 +1,4 @@
-name: Backend CI/CD 1
+name: Backend CI/CD
 
 on:
   pull_request:
@@ -54,7 +54,7 @@ jobs:
           retention-days: 14
           compression-level: 0  # JAR는 이미 압축됨
 
-      # Discord 알림 추가 예정 (성공/실패 모두 알림 + 커밋)
+      # Discord 알림 추가 (성공/실패 여부 + 커밋 아이디)
       - name: Notify Discord - CI Result
         if: always()
         env:
@@ -247,7 +247,7 @@ jobs:
               echo "No old releases to clean up"
             fi
 
-      # 9. Discord 알림 추가 예정 (성공/실패 모두 알림 + 커밋)
+      # Discord 알림 추가 (성공/실패 여부 + 커밋 아이디)
       - name: Notify Discord - CI Result
         if: always()
         env:
