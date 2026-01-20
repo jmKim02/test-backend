@@ -8,7 +8,7 @@ on:
 jobs:
   ci: # PR 대상: Full CI (Lint → Build → Test → Artifact)
     # closed는 제외 (병합 시에는 CD만 실행)
-    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    if: github.event.action == 'opened' || github.event.action == 'synchronize' # || github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
       # 1. 코드 체크아웃
@@ -16,11 +16,11 @@ jobs:
         uses: actions/checkout@v4
 
       # 2. JDK 환경 설정 (캐싱 포함)
-      - name: Setup JDK 25
-        uses: actions/setup-java@v5
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '25'
+          java-version: '17'
           cache: 'gradle' # 의존성: ~/.gradle/caches, ~/.gradle/wrapper 캐싱
 
       # 3. Gradle 실행 권한 부여
@@ -38,11 +38,11 @@ jobs:
 
       # Phase 2: Build
       - name: Build with Gradle
-        run: ./gradlew build -x test
+        run: ./gradlew clean build -x test
 
       # Phase 3: Test (TODO: 테스트 작성 후 활성화)
-      - name: Run unit tests
-        run: ./gradlew test
+      # - name: Run unit tests
+      #   run: ./gradlew test
 
       # Phase 4: Artifact Upload
       # plane.jar 생성/저장 안하는 것은 build.gradle에서 설정
@@ -51,21 +51,8 @@ jobs:
         with:
           name: backend-${{ github.sha }}
           path: build/libs/*.jar
-          retention-days: 14
+          retention-days: 30
           compression-level: 0  # JAR는 이미 압축됨
-
-      # Discord 알림 추가 (성공/실패 여부 + 커밋 아이디)
-      - name: Notify Discord - CI Result
-        if: always()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
-        run: |
-          STATUS="${{ job.status }}"  # job.status로 변경
-          STATUS="${{ job.status }}"
-          curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"content\":\"<@${MENTION_USER}> Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
-            "$DISCORD_WEBHOOK_URL"
 
   cd:
     if: github.event.pull_request.merged == true
@@ -78,13 +65,20 @@ jobs:
         with:
           fetch-depth: 0 # Git Tag 생성 위해 전체 히스토리 필요함
 
+      # 2. Artifact Download (CI에서 생성한 JAR)
+      # - name: Download JAR artifact
+      #  uses: actions/download-artifact@v4
+      #  with:
+      #    name: backend-${{ github.sha }}
+      #    path: ./artifacts
+
       # 2. Artifact Download (변경)
       - name: Download JAR artifact
         uses: dawidd6/action-download-artifact@v6
         # 다른 워크플로우 실행의 Artifact도 다운로드 가능한 커스텀 액션
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: backend-ci-cd.yml  # Artifact를 생성한 워크플로우 파일명
+          workflow: backend-ci.yml  # Artifact를 생성한 워크플로우 파일명
           pr: ${{ github.event.pull_request.number }}  # PR 번호로 검색
           workflow_conclusion: success # 성공한 워크플로우만 검색
           name_is_regexp: true # Artifact 이름을 정규표현식으로 검색 true는 패턴 매칭 가능
@@ -95,6 +89,10 @@ jobs:
       - name: Prepare JAR with timestamp
         run: |
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          
+          echo "=== Artifact 크기 확인 ==="
+          du -sh artifacts/
+          
           cd artifacts
           cd $(ls -d backend-* | head -n 1)
           JAR_FILE=$(ls *.jar | head -n 1)   
@@ -127,24 +125,24 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            BACKEND_DIR="/home/system9902/backend"
+            BACKEND_DIR="/home/jmkim990226/backend"
             RELEASE_DIR="$BACKEND_DIR/release"
             NEW_JAR="$RELEASE_DIR/backend-${{ env.DEPLOY_TIMESTAMP }}.jar"
             CURRENT_LINK="$BACKEND_DIR/backend.jar"
             
             echo "1. 서비스 중지"
             sudo systemctl stop backend || true
-            
+              
             echo "2. 새 JAR로 심볼릭 링크 생성"
             ln -sf $NEW_JAR $CURRENT_LINK
             ls -lh ~/backend/backend.jar 
             
             echo "3. 서비스 시작"
             sudo systemctl start backend
-            
+      
             echo "4. 서비스 상태 확인"
             sudo systemctl status backend --no-pager
-            
+              
             echo "5. 프로세스 시작 대기"
             sleep 10
 
@@ -174,16 +172,13 @@ jobs:
               sleep 5
             done
             
-            # fail 시 롤백 + 디스코드 알림 추가 예정
-
             echo "Health check failed!"
-            tail -30 /home/system9902/backend/backend.log
+            tail -30 /home/jmkim990226/backend/backend.log
             exit 1
 
       # 7. 시맨틱 버전 태그 생성
       - name: Create Semantic Version Tag
-        if: |
-          steps.healthcheck.outcome == 'success' && github.event.pull_request.base.ref == 'main'
+        if: steps.healthcheck.outcome == 'success'  # Health Check 성공 시에만 실행
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -222,7 +217,7 @@ jobs:
           git push origin $NEW_VERSION
           echo "DEPLOY_TAG=$NEW_VERSION" >> $GITHUB_ENV
           echo "Tag created: $NEW_VERSION"
-
+          
       # 8. 오래된 release/ 파일 정리 (배포 성공 시)
       - name: Cleanup Old Releases
         if: steps.healthcheck.outcome == 'success'
@@ -233,7 +228,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            RELEASE_DIR="/home/system9902/backend/release"
+            RELEASE_DIR="/home/jmkim990226/backend/release"
             
             echo "Cleanup old releases"
             
@@ -248,15 +243,13 @@ jobs:
               echo "No old releases to clean up"
             fi
 
-      # Discord 알림 추가 (성공/실패 여부 + 커밋 아이디)
-      - name: Notify Discord - CD Result
-        if: always()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
-        run: |
-          STATUS="${{ job.status }}"  # job.status로 변경
-          TAG="${{ env.DEPLOY_TAG }}"
-          curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"content\":\"<@${MENTION_USER}> Backend CD **${STATUS}** | Tag: ${TAG} | \`${GITHUB_SHA:0:7}\`\"}" \
-            "$DISCORD_WEBHOOK_URL"
+      # 9. Discord 알림 (성공/실패 + 커밋) - 아직 테스트 전
+      # - name: Notify Discord
+      #  if: always()
+      #  env:
+      #    DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      #    STATUS: ${{ steps.healthcheck.outcome }} # success | failure | cancelled | skipped
+      #  run: |
+      #    curl -s -X POST -H "Content-Type: application/json" \
+      #      -d "{\"content\":\"Backend deploy ${STATUS} | commit: ${{ github.sha }}\"}" \
+      #      "$DISCORD_WEBHOOK_URL"
