@@ -59,8 +59,14 @@ jobs:
         if: always()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
         run: |
           STATUS="${{ job.status }}"  # job.status로 변경
+          if [ "$STATUS" == "failure" ]; then
+            MENTION="<@${{ secrets.DISCORD_MENTION_USER_ID }}>"
+          else
+            MENTION=""
+          fi
           curl -s -X POST -H "Content-Type: application/json" \
             -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
             "$DISCORD_WEBHOOK_URL"
@@ -287,6 +293,7 @@ jobs:
         if: always()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
         run: |
           STATUS="${{ job.status }}"  # job.status로 변경
           curl -s -X POST -H "Content-Type: application/json" \
