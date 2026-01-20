@@ -1,4 +1,4 @@
-name: Backend CI/CD 12
+name: Backend CI/CD 1
 
 on:
   pull_request:
@@ -54,7 +54,7 @@ jobs:
           retention-days: 14
           compression-level: 0  # JAR는 이미 압축됨
 
-  code-review:
+  code-review: # 클로드 PR 코드 리뷰 자동화
     if: github.event.action == 'opened' || github.event.action == 'synchronize'
     runs-on: ubuntu-latest
     permissions:
@@ -88,7 +88,19 @@ jobs:
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Read,LS,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
+
+      # Discord 알림 추가 예정 (성공/실패 모두 알림 + 커밋)
+      - name: Notify Discord - CI Result
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"  # job.status로 변경
+          curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
+            "$DISCORD_WEBHOOK_URL"
+
   cd:
     if: github.event.pull_request.merged == true
     # needs: ci
@@ -204,7 +216,8 @@ jobs:
 
       # 7. 시맨틱 버전 태그 생성
       - name: Create Semantic Version Tag
-        if: steps.healthcheck.outcome == 'success'  # Health Check 성공 시에만 실행
+        if: |
+          steps.healthcheck.outcome == 'success' && github.event.pull_request.base.ref == 'main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -270,12 +283,12 @@ jobs:
             fi
 
       # 9. Discord 알림 추가 예정 (성공/실패 모두 알림 + 커밋)
-      # - name: Notify Discord
-      #  if: always()
-      #  env:
-      #    DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-      #    STATUS: ${{ steps.healthcheck.outcome }} # success | failure | cancelled | skipped
-      #  run: |
-      #    curl -s -X POST -H "Content-Type: application/json" \
-      #      -d "{\"content\":\"Backend deploy ${STATUS} | commit: ${{ github.sha }}\"}" \
-      #      "$DISCORD_WEBHOOK_URL"
+      - name: Notify Discord - CI Result
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"  # job.status로 변경
+          curl -s -X POST -H "Content-Type: application/json" \
+            -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
+            "$DISCORD_WEBHOOK_URL"
