@@ -62,8 +62,9 @@ jobs:
           MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
         run: |
           STATUS="${{ job.status }}"  # job.status로 변경
+          STATUS="${{ job.status }}"
           curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
+            -d "{\"content\":\"<@${MENTION_USER}> 🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
             "$DISCORD_WEBHOOK_URL"
 
   cd:
@@ -248,13 +249,14 @@ jobs:
             fi
 
       # Discord 알림 추가 (성공/실패 여부 + 커밋 아이디)
-      - name: Notify Discord - CI Result
+      - name: Notify Discord - CD Result
         if: always()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           MENTION_USER: ${{ secrets.DISCORD_MENTION_USER_ID }}
         run: |
           STATUS="${{ job.status }}"  # job.status로 변경
+          TAG="${{ env.DEPLOY_TAG }}"
           curl -s -X POST -H "Content-Type: application/json" \
-            -d "{\"content\":\"🔨 Backend CI **${STATUS}** | PR #${{ github.event.pull_request.number }} | \`${GITHUB_SHA:0:7}\`\"}" \
+            -d "{\"content\":\"<@${MENTION_USER}> 🚀 Backend CD **${JOB_STATUS}** | Health: ${HEALTH_STATUS} | Tag: ${TAG} | \`${GITHUB_SHA:0:7}\`\"}" \
             "$DISCORD_WEBHOOK_URL"
